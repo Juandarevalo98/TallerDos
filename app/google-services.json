@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "4842477972",
+    "project_id": "tallerdos-b0ddb",
+    "storage_bucket": "tallerdos-b0ddb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:4842477972:android:a6d6efe09c09e2fae25781",
+        "android_client_info": {
+          "package_name": "com.example.tallerdos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA839HypkZuYOiNs7SXH4wyB0bOblZSK54"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
