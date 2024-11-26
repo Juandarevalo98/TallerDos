@@ -41,6 +41,8 @@ android {
 }
 
 dependencies {
+    implementation("com.google.firebase:firebase-database:20.0.5")
+    implementation("com.google.firebase:firebase-auth:21.1.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -50,7 +52,6 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    implementation(libs.firebase.database)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

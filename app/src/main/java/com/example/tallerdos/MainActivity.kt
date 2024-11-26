@@ -10,14 +10,19 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.DatabaseReference
+import android.util.Log
 
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var gameRef: DatabaseReference
 
     private var player1Position = 0
     private var player2Position = 0
     private var player1SixCount = 0 // Contador de "6" para el jugador 1
     private var player2SixCount = 0 // Contador de "6" para el jugador 2
     private val columns = 8
+    var finalPosition = 0
 
     private val cellPlayers = mutableMapOf<Int, MutableList<Int>>() // Almacena los jugadores en cada celda
     private val cellSpecialColors = mutableMapOf<Int, Int>() // Colores especiales de las casillas
@@ -41,32 +46,18 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_board)
 
-        val database = FirebaseDatabase.getInstance()
-        val gameRef = database.getReference("games").child("gameId123")
-
-        val initialGameState = mapOf(
-            "player1" to mapOf(
-                "position" to 0,
-                "sixCount" to 0
-            ),
-            "player2" to mapOf(
-                "position" to 0,
-                "sixCount" to 0
-            ),
-            "currentTurn" to 1
-        )
-
-        gameRef.setValue(initialGameState).addOnSuccessListener {
-            // Datos iniciales establecidos
-        }.addOnFailureListener {
-            // Manejar errores
-        }
-
         val boardGrid = findViewById<GridLayout>(R.id.boardGrid)
         val btnPlayer1 = findViewById<Button>(R.id.btnPlayer1)
         val btnPlayer2 = findViewById<Button>(R.id.btnPlayer2)
         val tvDice1 = findViewById<TextView>(R.id.tvDice1)
         val tvDice2 = findViewById<TextView>(R.id.tvDice2)
+        val currentTurnTextView = findViewById<TextView>(R.id.currentTurnTextView)
+
+        val database = FirebaseDatabase.getInstance().reference
+        val newGameRef = database.child("games").child("Prueba123")
+        gameRef = newGameRef
+
+        initializeGame()
 
         var cellNumber = 1
 
@@ -115,11 +106,30 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        fun updateGameState() {
+            val gameState = mapOf(
+                "player1" to mapOf(
+                    "position" to player1Position,
+                    "sixCount" to player1SixCount
+                ),
+                "player2" to mapOf(
+                    "position" to player2Position,
+                    "sixCount" to player2SixCount
+                ),
+            )
+
+            gameRef.setValue(gameState).addOnSuccessListener {
+                Log.d("FirebaseUpdate", "Estado actualizado: $gameState")
+            }.addOnFailureListener {
+                Log.e("FirebaseError", "Error al actualizar: ${it.message}")
+            }
+        }
+
         fun updatePlayerPosition(player: Int, newPosition: Int) {
             val previousPosition = if (player == 1) player1Position else player2Position
             cellPlayers[previousPosition]?.remove(player) // Eliminar del lugar anterior
 
-            var finalPosition = newPosition
+            finalPosition = newPosition
             var message = ""
 
             escaleras.forEach { (rango, _) ->
@@ -148,6 +158,8 @@ class MainActivity : AppCompatActivity() {
             if (message.isNotEmpty()) {
                 Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
             }
+
+            updateGameState()
         }
 
         fun updateBoard() {
@@ -303,6 +315,7 @@ class MainActivity : AppCompatActivity() {
                             return@animateBothDice
                         }
                     }
+                    updateGameState()
                 }
 
                 // Calcular nueva posición del jugador
@@ -320,9 +333,11 @@ class MainActivity : AppCompatActivity() {
                             if (player == 1) {
                                 btnPlayer1.isEnabled = true
                                 btnPlayer2.isEnabled = false
+                                currentTurnTextView.text = "Turno del Jugador 1 (Turno Extra)"
                             } else {
                                 btnPlayer1.isEnabled = false
                                 btnPlayer2.isEnabled = true
+                                currentTurnTextView.text = "Turno del Jugador 2 (Turno Extra)"
                             }
                         } else {
                             onTurnEnd()
@@ -342,6 +357,7 @@ class MainActivity : AppCompatActivity() {
             handlePlayerTurn(1, player1Position, tvDice1, tvDice2) {
                 btnPlayer1.isEnabled = false
                 btnPlayer2.isEnabled = true
+                currentTurnTextView.text = "Turno del Jugador 2"
             }
         }
 
@@ -352,9 +368,31 @@ class MainActivity : AppCompatActivity() {
             handlePlayerTurn(2, player2Position, tvDice1, tvDice2) {
                 btnPlayer1.isEnabled = true
                 btnPlayer2.isEnabled = false
+                currentTurnTextView.text = "Turno del Jugador 1"
             }
         }
 
         updateBoard()
+
+    }
+
+    fun initializeGame() {
+        val initialGameState = mapOf(
+            "currentTurn" to 1,
+            "player1" to mapOf(
+                "position" to 0,
+                "sixCount" to 0
+            ),
+            "player2" to mapOf(
+                "position" to 0,
+                "sixCount" to 0
+            )
+        )
+
+        gameRef.setValue(initialGameState).addOnSuccessListener {
+            Toast.makeText(this, "Juego creado", Toast.LENGTH_SHORT).show()
+        }.addOnFailureListener {
+            Toast.makeText(this, "Error al crear el juego: ${it.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 }

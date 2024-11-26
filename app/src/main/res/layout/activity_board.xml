@@ -16,6 +16,15 @@
         android:gravity="center"
         android:layout_marginBottom="16dp" />
 
+    <TextView
+        android:id="@+id/currentTurnTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Turno del Jugador 1"
+        android:textSize="18sp"
+        android:layout_marginTop="16dp"
+        android:gravity="center" />
+
     <GridLayout
         android:id="@+id/boardGrid"
         android:layout_width="match_parent"
