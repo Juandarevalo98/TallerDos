@@ -10,12 +10,26 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.ValueEventListener
 import android.util.Log
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var gameRef: DatabaseReference
+
+    data class Player(
+        var position: Int = 0,
+        var sixCount: Int = 0
+    )
+
+    data class GameState(
+        var currentTurn: Int = 0,
+        var player1: Player = Player(),
+        var player2: Player = Player()
+    )
 
     private var player1Position = 0
     private var player2Position = 0
@@ -58,6 +72,60 @@ class MainActivity : AppCompatActivity() {
         gameRef = newGameRef
 
         initializeGame()
+
+        fun updateBoard() {
+            val boardGrid = findViewById<GridLayout>(R.id.boardGrid)
+            for (i in 0 until boardGrid.childCount) {
+                val cell = boardGrid.getChildAt(i) as TextView
+                val cellNumber = i + 1
+
+                // Actualizar el color de fondo de la celda (opcional)
+                cell.setBackgroundColor(cellSpecialColors[cellNumber] ?: baseCellColor)
+
+                // Limpiar el texto de la celda
+                cell.text = cellNumber.toString()
+
+                // Mostrar los jugadores en la celda
+                if (player1Position == cellNumber) {
+                    cell.text = "$cellNumber 🔵"
+                } else if (player2Position == cellNumber) {
+                    cell.text = "$cellNumber 🟠"
+                }
+            }
+        }
+
+        gameRef.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val gameState = snapshot.getValue(GameState::class.java)
+                if (gameState != null) {
+                    // Actualiza las posiciones de las fichas
+                    player1Position = gameState.player1.position
+                    player2Position = gameState.player2.position
+
+                    Log.d("Firebase", "Player 1 Position: $player1Position")
+                    Log.d("Firebase", "Player 2 Position: $player2Position")
+
+                    // Actualiza el turno actual
+                    val currentTurn = gameState.currentTurn
+                    currentTurnTextView.text = "Turno del Jugador $currentTurn"
+
+                    // Habilita/deshabilita los botones según el turno
+                    if (currentTurn == 1) {
+                        btnPlayer1.isEnabled = true
+                        btnPlayer2.isEnabled = false
+                    } else {
+                        btnPlayer1.isEnabled = false
+                        btnPlayer2.isEnabled = true
+                    }
+
+                    updateBoard()
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("Firebase", "Error al obtener el estado del juego: ${error.message}")
+            }
+        })
 
         var cellNumber = 1
 
@@ -160,26 +228,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             updateGameState()
-        }
-
-        fun updateBoard() {
-            for (i in 0 until boardGrid.childCount) {
-                val cell = boardGrid.getChildAt(i) as TextView
-                val cellNumber = i + 1
-
-                cell.setBackgroundColor(cellSpecialColors[cellNumber] ?: baseCellColor)
-
-                // Mostrar jugadores
-                val playersInCell = cellPlayers[cellNumber] ?: listOf()
-                if (playersInCell.isNotEmpty()) {
-                    val colors = playersInCell.joinToString("") { player ->
-                        if (player == 1) "🔵" else "🟠"
-                    }
-                    cell.text = "$cellNumber $colors"
-                } else {
-                    cell.text = cellNumber.toString()
-                }
-            }
         }
 
         fun animatePlayerMovement(player: Int, startPosition: Int, endPosition: Int, onFinished: () -> Unit) {
@@ -286,6 +334,7 @@ class MainActivity : AppCompatActivity() {
             updateBoard()
         }
 
+        /* REGLAS DEL JUEGO */
         fun handlePlayerTurn(
             player: Int,
             currentPosition: Int,
@@ -294,7 +343,8 @@ class MainActivity : AppCompatActivity() {
             onTurnEnd: () -> Unit
         ) {
             animateBothDice(dice1TextView, dice2TextView) { diceSum ->
-                // Obtenemos los valores actuales de los dados
+
+                // Obtener los valores actuales de los dados
                 val dice1Result = dice1TextView.text.toString().toInt()
                 val dice2Result = dice2TextView.text.toString().toInt()
 
@@ -321,31 +371,48 @@ class MainActivity : AppCompatActivity() {
                 // Calcular nueva posición del jugador
                 val newPlayerPosition = currentPosition + diceSum
 
-                if (newPlayerPosition <= 64) {
-                    Toast.makeText(this, "Jugador $player avanza $diceSum posiciones", Toast.LENGTH_SHORT).show()
-                    animatePlayerMovement(player, currentPosition, newPlayerPosition) {
-                        updatePlayerPosition(player, newPlayerPosition)
-                        updateBoard()
+                if (newPlayerPosition > 64) {
+                    Toast.makeText(this, "¡Jugador $player ha ganado el juego!", Toast.LENGTH_LONG).show()
+                    updatePlayerPosition(player, 64)
+                    updateBoard()
+                    return@animateBothDice
+                    btnPlayer1.isEnabled = false
+                    btnPlayer2.isEnabled = false
+                }
 
-                        // Permitir un turno extra si saca 6 en los dados
-                        if (diceSum == 6) {
-                            Toast.makeText(this, "Jugador $player obtiene 6 y puede tirar nuevamente", Toast.LENGTH_SHORT).show()
-                            if (player == 1) {
-                                btnPlayer1.isEnabled = true
-                                btnPlayer2.isEnabled = false
-                                currentTurnTextView.text = "Turno del Jugador 1 (Turno Extra)"
-                            } else {
-                                btnPlayer1.isEnabled = false
-                                btnPlayer2.isEnabled = true
-                                currentTurnTextView.text = "Turno del Jugador 2 (Turno Extra)"
-                            }
+                Toast.makeText(this, "Jugador $player avanza $diceSum posiciones", Toast.LENGTH_SHORT).show()
+
+                animatePlayerMovement(player, currentPosition, newPlayerPosition) {
+                    updatePlayerPosition(player, newPlayerPosition)
+                    updateBoard()
+
+                    // Verificar si el jugador tiene un turno adicional
+                    if (diceSum == 6) {
+                        Toast.makeText(this, "Jugador $player obtiene un turno adicional por sumar 6", Toast.LENGTH_SHORT).show()
+
+                        // Actualizar Firebase para reflejar que sigue siendo el turno del mismo jugador
+                        gameRef.child("currentTurn").setValue(player)  // Mantener turno actual en Firebase
+
+                        // Actualizar interfaz según el jugador actual
+                        if (player == 1) {
+                            btnPlayer1.isEnabled = true
+                            btnPlayer2.isEnabled = false
+                            currentTurnTextView.text = "Turno del Jugador 1 (Turno Extra)"
                         } else {
-                            onTurnEnd()
+                            btnPlayer1.isEnabled = false
+                            btnPlayer2.isEnabled = true
+                            currentTurnTextView.text = "Turno del Jugador 2 (Turno Extra)"
                         }
+                        return@animatePlayerMovement // Salir de la función para permitir el turno adicional
+                    } else {
+                        // Cambiar el turno al siguiente jugador si no hubo turno extra
+                        val newTurn = if (player == 1) 2 else 1
+                        gameRef.child("currentTurn").setValue(newTurn)  // Actualizar el turno en Firebase
+                        btnPlayer1.isEnabled = (newTurn == 1) // Habilitar el botón del nuevo jugador
+                        btnPlayer2.isEnabled = (newTurn == 2)
+                        currentTurnTextView.text = "Turno del Jugador $newTurn"
+                        onTurnEnd()
                     }
-                } else {
-                    Toast.makeText(this, "Jugador $player no puede avanzar", Toast.LENGTH_SHORT).show()
-                    onTurnEnd()
                 }
             }
         }
